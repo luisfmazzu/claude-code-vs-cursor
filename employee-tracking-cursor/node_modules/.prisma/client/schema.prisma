@@ -1,0 +1,279 @@
+// Prisma Schema for Employee Absenteeism Tracking
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Company {
+  id                 String   @id @default(cuid())
+  name               String
+  slug               String   @unique
+  industry           String?
+  sizeRange          String?
+  emailDomain        String?
+  logoUrl            String?
+  timezone           String   @default("UTC")
+  subscriptionStatus String   @default("trial")
+  subscriptionTier   String?
+  stripeCustomerId   String?
+  trialEndsAt        DateTime?
+  settings           Json     @default("{}")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  // Relations
+  users              User[]
+  employees          Employee[]
+  absenceTypes       AbsenceType[]
+  absenceRecords     AbsenceRecord[]
+  emailIntegrations  EmailIntegration[]
+  aiProcessingLogs   AIProcessingLog[]
+  subscriptions      Subscription[]
+  usageMetrics       UsageMetrics[]
+  auditLogs          AuditLog[]
+  notifications      Notification[]
+
+  @@map("companies")
+}
+
+model User {
+  id                       String    @id @default(cuid())
+  companyId                String
+  email                    String    @unique
+  firstName                String
+  lastName                 String
+  role                     String    @default("user")
+  phone                    String?
+  passwordHash             String
+  avatarUrl                String?
+  isActive                 Boolean   @default(true)
+  emailVerified            Boolean   @default(false)
+  emailVerificationToken   String?
+  passwordResetToken       String?
+  passwordResetExpires     DateTime?
+  lastLogin                DateTime?
+  preferences              Json      @default("{}")
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+
+  // Relations
+  company                  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdAbsenceRecords    AbsenceRecord[] @relation("AbsenceRecordCreator")
+  approvedAbsenceRecords   AbsenceRecord[] @relation("AbsenceRecordApprover")
+  notifications            Notification[]
+
+  @@map("users")
+}
+
+model Employee {
+  id               String    @id @default(cuid())
+  companyId        String
+  employeeId       String?
+  email            String?
+  firstName        String
+  lastName         String
+  department       String?
+  position         String?
+  hireDate         DateTime?
+  terminationDate  DateTime?
+  status           String    @default("active")
+  managerId        String?
+  employmentType   String?
+  workLocation     String?
+  salaryCurrency   String    @default("USD")
+  salaryAmount     Decimal?
+  metadata         Json      @default("{}")
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  // Relations
+  company          Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  manager          Employee? @relation("EmployeeManager", fields: [managerId], references: [id])
+  subordinates     Employee[] @relation("EmployeeManager")
+  absenceRecords   AbsenceRecord[]
+
+  @@unique([companyId, employeeId])
+  @@map("employees")
+}
+
+model AbsenceType {
+  id                 String   @id @default(cuid())
+  companyId          String
+  name               String
+  code               String
+  description        String?
+  isPaid             Boolean  @default(true)
+  requiresApproval   Boolean  @default(true)
+  maxDaysPerYear     Int?
+  advanceNoticeDays  Int      @default(0)
+  color              String   @default("#3b82f6")
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  // Relations
+  company            Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  absenceRecords     AbsenceRecord[]
+
+  @@unique([companyId, code])
+  @@map("absence_types")
+}
+
+model AbsenceRecord {
+  id                String     @id @default(cuid())
+  companyId         String
+  employeeId        String
+  absenceTypeId     String
+  startDate         DateTime
+  endDate           DateTime
+  totalDays         Int
+  reason            String?
+  notes             String?
+  status            String     @default("pending")
+  source            String     @default("manual")
+  sourceReference   String?
+  confidenceScore   Float?
+  approvedBy        String?
+  approvedAt        DateTime?
+  rejectionReason   String?
+  createdBy         String?
+  attachments       Json       @default("[]")
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  // Relations
+  company           Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee          Employee   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  absenceType       AbsenceType @relation(fields: [absenceTypeId], references: [id], onDelete: Cascade)
+  creator           User?      @relation("AbsenceRecordCreator", fields: [createdBy], references: [id])
+  approver          User?      @relation("AbsenceRecordApprover", fields: [approvedBy], references: [id])
+
+  @@map("absence_records")
+}
+
+model EmailIntegration {
+  id                      String    @id @default(cuid())
+  companyId               String
+  name                    String
+  provider                String
+  configuration           Json      @default("{}")
+  encryptedCredentials    String
+  isActive                Boolean   @default(true)
+  lastSync                DateTime?
+  syncStatus              String    @default("disconnected")
+  errorMessage            String?
+  syncFrequencyMinutes    Int       @default(60)
+  totalEmailsProcessed    Int       @default(0)
+  lastEmailProcessedAt    DateTime?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  // Relations
+  company                 Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@map("email_integrations")
+}
+
+model AIProcessingLog {
+  id                String   @id @default(cuid())
+  companyId         String
+  processingType    String
+  provider          String
+  inputData         Json?
+  aiResponse        Json?
+  confidenceScore   Float?
+  status            String   @default("processing")
+  errorMessage      String?
+  processingTimeMs  Int?
+  costUsd           Decimal?
+  tokensUsed        Int?
+  relatedRecordId   String?
+  createdAt         DateTime @default(now())
+
+  // Relations
+  company           Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@map("ai_processing_logs")
+}
+
+model Subscription {
+  id                   String   @id @default(cuid())
+  companyId            String
+  stripeSubscriptionId String   @unique
+  status               String
+  currentPeriodStart   DateTime
+  currentPeriodEnd     DateTime
+  planName             String
+  planPrice            Decimal
+  planInterval         String
+  cancelAtPeriodEnd    Boolean  @default(false)
+  cancelledAt          DateTime?
+  trialStart           DateTime?
+  trialEnd             DateTime?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  // Relations
+  company              Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@map("subscriptions")
+}
+
+model UsageMetrics {
+  id          String   @id @default(cuid())
+  companyId   String
+  metricType  String
+  metricValue Int
+  periodStart DateTime
+  periodEnd   DateTime
+  createdAt   DateTime @default(now())
+
+  // Relations
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@map("usage_metrics")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  companyId  String
+  tableName  String
+  recordId   String
+  action     String
+  oldValues  Json?
+  newValues  Json?
+  changedBy  String?
+  changedAt  DateTime @default(now())
+  ipAddress  String?
+  userAgent  String?
+
+  // Relations
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@map("audit_logs")
+}
+
+model Notification {
+  id         String    @id @default(cuid())
+  companyId  String
+  userId     String?
+  type       String
+  title      String
+  message    String
+  data       Json      @default("{}")
+  isRead     Boolean   @default(false)
+  readAt     DateTime?
+  expiresAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  // Relations
+  company    Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user       User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+} 

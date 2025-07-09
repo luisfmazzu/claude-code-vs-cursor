@@ -1,0 +1,1749 @@
+openapi: 3.0.3
+info:
+  title: Employee Absenteeism Tracking API
+  description: |
+    RESTful API for the Employee Absenteeism Tracking SaaS platform.
+    
+    This API provides comprehensive employee absenteeism management capabilities including:
+    - AI-powered email parsing for automatic absence detection
+    - Employee and absence record management
+    - Real-time analytics and reporting
+    - Multi-tenant architecture with role-based access control
+    
+    ## Authentication
+    
+    This API uses JWT Bearer tokens for authentication. Include the token in the Authorization header:
+    ```
+    Authorization: Bearer <your-jwt-token>
+    ```
+    
+    ## Rate Limiting
+    
+    API requests are rate limited based on subscription tier:
+    - Basic: 1000 requests/hour
+    - Professional: 5000 requests/hour  
+    - Enterprise: 10000 requests/hour
+    
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: api-support@absenteeism-tracker.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api.absenteeism-tracker.com/v1
+    description: Production server
+  - url: https://staging-api.absenteeism-tracker.com/v1
+    description: Staging server
+  - url: http://localhost:3001/v1
+    description: Development server
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Authentication
+    description: User authentication and authorization
+  - name: Companies
+    description: Company management and dashboard
+  - name: Users
+    description: User management and roles
+  - name: Employees
+    description: Employee management
+  - name: Absences
+    description: Absence record management
+  - name: AI Processing
+    description: AI-powered parsing and analysis
+  - name: Email Integration
+    description: Email service integration management
+  - name: Analytics
+    description: Reporting and analytics
+  - name: Billing
+    description: Subscription and billing management
+  - name: Admin
+    description: Platform administration (admin users only)
+
+paths:
+  # ==========================================
+  # AUTHENTICATION ENDPOINTS
+  # ==========================================
+  
+  /auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: Register new company and user
+      description: Creates a new company account with the first user as owner
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: Authenticate user
+      description: Login with email and password
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/refresh:
+    post:
+      tags:
+        - Authentication
+      summary: Refresh access token
+      description: Get new access token using refresh token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refreshToken:
+                  type: string
+              required:
+                - refreshToken
+      responses:
+        '200':
+          description: Token refreshed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: Logout user
+      description: Invalidate current session
+      responses:
+        '200':
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  # ==========================================
+  # COMPANY ENDPOINTS
+  # ==========================================
+
+  /companies/dashboard:
+    get:
+      tags:
+        - Companies
+      summary: Get company dashboard data
+      description: Retrieve dashboard metrics and analytics
+      parameters:
+        - name: period
+          in: query
+          description: Time period for metrics
+          schema:
+            type: string
+            enum: [7d, 30d, 90d, 1y]
+            default: 30d
+      responses:
+        '200':
+          description: Dashboard data retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardResponse'
+
+  /companies/profile:
+    get:
+      tags:
+        - Companies
+      summary: Get company profile
+      responses:
+        '200':
+          description: Company profile retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Company'
+    
+    put:
+      tags:
+        - Companies
+      summary: Update company profile
+      description: Update company information (admin+ only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCompanyRequest'
+      responses:
+        '200':
+          description: Company updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Company'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ==========================================
+  # USER MANAGEMENT ENDPOINTS
+  # ==========================================
+
+  /users:
+    get:
+      tags:
+        - Users
+      summary: List company users
+      description: Get all users in the company
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+        - name: role
+          in: query
+          description: Filter by user role
+          schema:
+            $ref: '#/components/schemas/UserRole'
+      responses:
+        '200':
+          description: Users retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserListResponse'
+
+    post:
+      tags:
+        - Users
+      summary: Invite new user
+      description: Send invitation to new user (admin+ only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InviteUserRequest'
+      responses:
+        '201':
+          description: User invitation sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /users/{userId}:
+    get:
+      tags:
+        - Users
+      summary: Get user details
+      parameters:
+        - $ref: '#/components/parameters/UserIdParam'
+      responses:
+        '200':
+          description: User details retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags:
+        - Users
+      summary: Update user
+      description: Update user information and role (admin+ only)
+      parameters:
+        - $ref: '#/components/parameters/UserIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+      responses:
+        '200':
+          description: User updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    delete:
+      tags:
+        - Users
+      summary: Delete user
+      description: Remove user from company (admin+ only)
+      parameters:
+        - $ref: '#/components/parameters/UserIdParam'
+      responses:
+        '204':
+          description: User deleted successfully
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ==========================================
+  # EMPLOYEE MANAGEMENT ENDPOINTS
+  # ==========================================
+
+  /employees:
+    get:
+      tags:
+        - Employees
+      summary: List employees
+      description: Get all employees with filtering and pagination
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+        - name: search
+          in: query
+          description: Search employees by name or email
+          schema:
+            type: string
+        - name: department
+          in: query
+          description: Filter by department
+          schema:
+            type: string
+        - name: status
+          in: query
+          description: Filter by employment status
+          schema:
+            $ref: '#/components/schemas/EmployeeStatus'
+        - name: sortBy
+          in: query
+          description: Sort field
+          schema:
+            type: string
+            enum: [firstName, lastName, department, hireDate]
+            default: lastName
+        - name: sortOrder
+          in: query
+          description: Sort direction
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: asc
+      responses:
+        '200':
+          description: Employees retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployeeListResponse'
+
+    post:
+      tags:
+        - Employees
+      summary: Create employee
+      description: Add new employee (admin+ only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEmployeeRequest'
+      responses:
+        '201':
+          description: Employee created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Employee'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /employees/import:
+    post:
+      tags:
+        - Employees
+      summary: Import employees from CSV
+      description: Bulk import employees using AI-powered CSV parsing
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: CSV file containing employee data
+                options:
+                  type: object
+                  properties:
+                    skipFirstRow:
+                      type: boolean
+                      default: true
+                    autoDetectColumns:
+                      type: boolean
+                      default: true
+                    dryRun:
+                      type: boolean
+                      default: false
+      responses:
+        '200':
+          description: Import completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /employees/{employeeId}:
+    get:
+      tags:
+        - Employees
+      summary: Get employee details
+      parameters:
+        - $ref: '#/components/parameters/EmployeeIdParam'
+      responses:
+        '200':
+          description: Employee details retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Employee'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags:
+        - Employees
+      summary: Update employee
+      description: Update employee information (admin+ only)
+      parameters:
+        - $ref: '#/components/parameters/EmployeeIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateEmployeeRequest'
+      responses:
+        '200':
+          description: Employee updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Employee'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    delete:
+      tags:
+        - Employees
+      summary: Delete employee
+      description: Remove employee record (admin+ only)
+      parameters:
+        - $ref: '#/components/parameters/EmployeeIdParam'
+      responses:
+        '204':
+          description: Employee deleted successfully
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /employees/{employeeId}/absences:
+    get:
+      tags:
+        - Employees
+      summary: Get employee absence history
+      parameters:
+        - $ref: '#/components/parameters/EmployeeIdParam'
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Absence history retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AbsenceListResponse'
+
+  # ==========================================
+  # ABSENCE MANAGEMENT ENDPOINTS
+  # ==========================================
+
+  /absences:
+    get:
+      tags:
+        - Absences
+      summary: List absence records
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+        - name: employeeId
+          in: query
+          description: Filter by employee
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          description: Filter by approval status
+          schema:
+            $ref: '#/components/schemas/AbsenceStatus'
+        - name: absenceType
+          in: query
+          description: Filter by absence type
+          schema:
+            type: string
+        - name: startDate
+          in: query
+          description: Filter from start date
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          description: Filter to end date
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Absence records retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AbsenceListResponse'
+
+    post:
+      tags:
+        - Absences
+      summary: Create absence record
+      description: Manually create absence record (admin+ only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAbsenceRequest'
+      responses:
+        '201':
+          description: Absence record created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AbsenceRecord'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /absences/{absenceId}:
+    get:
+      tags:
+        - Absences
+      summary: Get absence details
+      parameters:
+        - $ref: '#/components/parameters/AbsenceIdParam'
+      responses:
+        '200':
+          description: Absence details retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AbsenceRecord'
+
+    put:
+      tags:
+        - Absences
+      summary: Update absence record
+      description: Update absence information (admin+ only)
+      parameters:
+        - $ref: '#/components/parameters/AbsenceIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAbsenceRequest'
+      responses:
+        '200':
+          description: Absence updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AbsenceRecord'
+
+    delete:
+      tags:
+        - Absences
+      summary: Delete absence record
+      description: Remove absence record (admin+ only)
+      parameters:
+        - $ref: '#/components/parameters/AbsenceIdParam'
+      responses:
+        '204':
+          description: Absence deleted successfully
+
+  /absences/batch-approve:
+    post:
+      tags:
+        - Absences
+      summary: Batch approve/reject absences
+      description: Approve or reject multiple absence records (admin+ only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchApprovalRequest'
+      responses:
+        '200':
+          description: Batch operation completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchApprovalResponse'
+
+  # ==========================================
+  # AI PROCESSING ENDPOINTS
+  # ==========================================
+
+  /ai/parse-email:
+    post:
+      tags:
+        - AI Processing
+      summary: Parse email for absence information
+      description: Use AI to extract absence data from email content
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailParseRequest'
+      responses:
+        '200':
+          description: Email parsed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailParseResponse'
+        '402':
+          $ref: '#/components/responses/PaymentRequired'
+
+  /ai/parse-csv:
+    post:
+      tags:
+        - AI Processing
+      summary: Parse CSV with AI
+      description: Use AI to intelligently parse CSV data
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                dataType:
+                  type: string
+                  enum: [employees, absences]
+                options:
+                  type: object
+                  properties:
+                    hasHeaders:
+                      type: boolean
+                      default: true
+                    delimiter:
+                      type: string
+                      default: ","
+      responses:
+        '200':
+          description: CSV parsed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CSVParseResponse'
+
+  /ai/usage:
+    get:
+      tags:
+        - AI Processing
+      summary: Get AI usage statistics
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [day, week, month]
+            default: month
+      responses:
+        '200':
+          description: Usage statistics retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AIUsageResponse'
+
+  # ==========================================
+  # EMAIL INTEGRATION ENDPOINTS
+  # ==========================================
+
+  /email-integrations:
+    get:
+      tags:
+        - Email Integration
+      summary: List email integrations
+      responses:
+        '200':
+          description: Email integrations retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/EmailIntegration'
+
+    post:
+      tags:
+        - Email Integration
+      summary: Create email integration
+      description: Set up new email service integration (admin+ only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEmailIntegrationRequest'
+      responses:
+        '201':
+          description: Integration created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailIntegration'
+
+  /email-integrations/{integrationId}:
+    get:
+      tags:
+        - Email Integration
+      summary: Get integration details
+      parameters:
+        - name: integrationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Integration details retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailIntegration'
+
+    put:
+      tags:
+        - Email Integration
+      summary: Update integration
+      description: Update integration settings (admin+ only)
+      parameters:
+        - name: integrationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateEmailIntegrationRequest'
+      responses:
+        '200':
+          description: Integration updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailIntegration'
+
+    delete:
+      tags:
+        - Email Integration
+      summary: Delete integration
+      description: Remove email integration (admin+ only)
+      parameters:
+        - name: integrationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Integration deleted successfully
+
+  /email-integrations/{integrationId}/test:
+    post:
+      tags:
+        - Email Integration
+      summary: Test integration
+      description: Verify email integration is working
+      parameters:
+        - name: integrationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Test completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntegrationTestResponse'
+
+  # ==========================================
+  # ANALYTICS ENDPOINTS
+  # ==========================================
+
+  /analytics/absence-trends:
+    get:
+      tags:
+        - Analytics
+      summary: Get absence trend data
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [7d, 30d, 90d, 1y]
+            default: 30d
+        - name: groupBy
+          in: query
+          schema:
+            type: string
+            enum: [day, week, month]
+            default: day
+      responses:
+        '200':
+          description: Trend data retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrendDataResponse'
+
+  /analytics/department-breakdown:
+    get:
+      tags:
+        - Analytics
+      summary: Get department absence breakdown
+      responses:
+        '200':
+          description: Department breakdown retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DepartmentBreakdownResponse'
+
+  /analytics/reports/generate:
+    post:
+      tags:
+        - Analytics
+      summary: Generate custom report
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateReportRequest'
+      responses:
+        '200':
+          description: Report generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportResponse'
+
+  # ==========================================
+  # BILLING ENDPOINTS
+  # ==========================================
+
+  /billing/subscription:
+    get:
+      tags:
+        - Billing
+      summary: Get subscription details
+      description: Get current subscription information (owner+ only)
+      responses:
+        '200':
+          description: Subscription details retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionResponse'
+
+  /billing/usage:
+    get:
+      tags:
+        - Billing
+      summary: Get usage metrics
+      description: Get current billing period usage
+      responses:
+        '200':
+          description: Usage metrics retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsageResponse'
+
+  /billing/checkout:
+    post:
+      tags:
+        - Billing
+      summary: Create checkout session
+      description: Create Stripe checkout session for subscription (owner+ only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckoutRequest'
+      responses:
+        '200':
+          description: Checkout session created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckoutResponse'
+
+  /billing/portal:
+    post:
+      tags:
+        - Billing
+      summary: Create billing portal session
+      description: Create Stripe customer portal session (owner+ only)
+      responses:
+        '200':
+          description: Portal session created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PortalResponse'
+
+  # ==========================================
+  # ADMIN ENDPOINTS (Platform Administration)
+  # ==========================================
+
+  /admin/stats:
+    get:
+      tags:
+        - Admin
+      summary: Get platform statistics
+      description: Platform-wide statistics (admin only)
+      responses:
+        '200':
+          description: Statistics retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminStatsResponse'
+
+  /admin/companies:
+    get:
+      tags:
+        - Admin
+      summary: List all companies
+      description: Get all companies on the platform (admin only)
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [trial, active, suspended, cancelled]
+      responses:
+        '200':
+          description: Companies retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminCompanyListResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    PageParam:
+      name: page
+      in: query
+      description: Page number (1-based)
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    
+    LimitParam:
+      name: limit
+      in: query
+      description: Number of items per page
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    
+    UserIdParam:
+      name: userId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    
+    EmployeeIdParam:
+      name: employeeId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    
+    AbsenceIdParam:
+      name: absenceId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    
+    Forbidden:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    
+    Conflict:
+      description: Resource conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    
+    PaymentRequired:
+      description: Payment required - Usage limit exceeded
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    # ==========================================
+    # AUTHENTICATION SCHEMAS
+    # ==========================================
+    
+    RegisterRequest:
+      type: object
+      properties:
+        company:
+          type: object
+          properties:
+            name:
+              type: string
+              minLength: 2
+              maxLength: 255
+            industry:
+              type: string
+              maxLength: 100
+            sizeRange:
+              type: string
+              enum: ['1-10', '11-50', '51-200', '201-500', '500+']
+            emailDomain:
+              type: string
+              format: hostname
+          required:
+            - name
+        user:
+          type: object
+          properties:
+            firstName:
+              type: string
+              minLength: 1
+              maxLength: 100
+            lastName:
+              type: string
+              minLength: 1
+              maxLength: 100
+            email:
+              type: string
+              format: email
+            password:
+              type: string
+              minLength: 8
+              pattern: '^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]'
+            phone:
+              type: string
+              pattern: '^\+?[1-9]\d{1,14}$'
+          required:
+            - firstName
+            - lastName
+            - email
+            - password
+      required:
+        - company
+        - user
+
+    LoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+      required:
+        - email
+        - password
+
+    AuthResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            user:
+              $ref: '#/components/schemas/User'
+            company:
+              $ref: '#/components/schemas/Company'
+            accessToken:
+              type: string
+              description: JWT access token
+            refreshToken:
+              type: string
+              description: JWT refresh token
+          required:
+            - user
+            - company
+            - accessToken
+            - refreshToken
+      required:
+        - success
+        - data
+
+    TokenResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+      required:
+        - accessToken
+        - refreshToken
+
+    # ==========================================
+    # CORE ENTITY SCHEMAS
+    # ==========================================
+
+    Company:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        slug:
+          type: string
+        industry:
+          type: string
+          nullable: true
+        sizeRange:
+          type: string
+          enum: ['1-10', '11-50', '51-200', '201-500', '500+']
+          nullable: true
+        emailDomain:
+          type: string
+          nullable: true
+        logoUrl:
+          type: string
+          format: uri
+          nullable: true
+        timezone:
+          type: string
+          default: UTC
+        subscriptionStatus:
+          type: string
+          enum: [trial, active, suspended, cancelled, past_due]
+        subscriptionTier:
+          type: string
+          enum: [basic, professional, enterprise]
+          nullable: true
+        trialEndsAt:
+          type: string
+          format: date-time
+          nullable: true
+        settings:
+          type: object
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - slug
+        - subscriptionStatus
+        - createdAt
+        - updatedAt
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        companyId:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        firstName:
+          type: string
+        lastName:
+          type: string
+        role:
+          $ref: '#/components/schemas/UserRole'
+        phone:
+          type: string
+          nullable: true
+        avatarUrl:
+          type: string
+          format: uri
+          nullable: true
+        isActive:
+          type: boolean
+        emailVerified:
+          type: boolean
+        lastLogin:
+          type: string
+          format: date-time
+          nullable: true
+        preferences:
+          type: object
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - companyId
+        - email
+        - firstName
+        - lastName
+        - role
+        - isActive
+        - emailVerified
+        - createdAt
+        - updatedAt
+
+    UserRole:
+      type: string
+      enum: [owner, administrator, user]
+
+    Employee:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        companyId:
+          type: string
+          format: uuid
+        employeeId:
+          type: string
+          nullable: true
+        email:
+          type: string
+          format: email
+          nullable: true
+        firstName:
+          type: string
+        lastName:
+          type: string
+        department:
+          type: string
+          nullable: true
+        position:
+          type: string
+          nullable: true
+        hireDate:
+          type: string
+          format: date
+          nullable: true
+        terminationDate:
+          type: string
+          format: date
+          nullable: true
+        status:
+          $ref: '#/components/schemas/EmployeeStatus'
+        managerId:
+          type: string
+          format: uuid
+          nullable: true
+        employmentType:
+          type: string
+          enum: [full_time, part_time, contract, intern]
+          nullable: true
+        workLocation:
+          type: string
+          nullable: true
+        salaryCurrency:
+          type: string
+          pattern: '^[A-Z]{3}$'
+          default: USD
+        salaryAmount:
+          type: number
+          format: decimal
+          nullable: true
+        metadata:
+          type: object
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - companyId
+        - firstName
+        - lastName
+        - status
+        - createdAt
+        - updatedAt
+
+    EmployeeStatus:
+      type: string
+      enum: [active, inactive, terminated, on_leave]
+
+    AbsenceRecord:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        companyId:
+          type: string
+          format: uuid
+        employeeId:
+          type: string
+          format: uuid
+        employee:
+          $ref: '#/components/schemas/Employee'
+        absenceTypeId:
+          type: string
+          format: uuid
+        absenceType:
+          $ref: '#/components/schemas/AbsenceType'
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        totalDays:
+          type: number
+          format: decimal
+        reason:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        status:
+          $ref: '#/components/schemas/AbsenceStatus'
+        source:
+          type: string
+          enum: [manual, email, import, api]
+        sourceReference:
+          type: string
+          nullable: true
+        confidenceScore:
+          type: number
+          format: decimal
+          minimum: 0
+          maximum: 1
+          nullable: true
+        approvedBy:
+          type: string
+          format: uuid
+          nullable: true
+        approvedAt:
+          type: string
+          format: date-time
+          nullable: true
+        rejectionReason:
+          type: string
+          nullable: true
+        createdBy:
+          type: string
+          format: uuid
+          nullable: true
+        attachments:
+          type: array
+          items:
+            type: object
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - companyId
+        - employeeId
+        - absenceTypeId
+        - startDate
+        - endDate
+        - totalDays
+        - status
+        - source
+        - createdAt
+        - updatedAt
+
+    AbsenceStatus:
+      type: string
+      enum: [pending, approved, rejected, cancelled, in_review]
+
+    AbsenceType:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        companyId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        code:
+          type: string
+        description:
+          type: string
+          nullable: true
+        isPaid:
+          type: boolean
+        requiresApproval:
+          type: boolean
+        maxDaysPerYear:
+          type: integer
+          nullable: true
+        advanceNoticeDays:
+          type: integer
+        color:
+          type: string
+          pattern: '^#[0-9A-Fa-f]{6}$'
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - companyId
+        - name
+        - code
+        - isPaid
+        - requiresApproval
+        - advanceNoticeDays
+        - color
+        - isActive
+        - createdAt
+        - updatedAt
+
+    EmailIntegration:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        companyId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        provider:
+          type: string
+          enum: [outlook, gmail, exchange, imap, pop3]
+        isActive:
+          type: boolean
+        lastSync:
+          type: string
+          format: date-time
+          nullable: true
+        syncStatus:
+          type: string
+          enum: [connected, disconnected, error, syncing, rate_limited]
+        errorMessage:
+          type: string
+          nullable: true
+        syncFrequencyMinutes:
+          type: integer
+        totalEmailsProcessed:
+          type: integer
+        lastEmailProcessedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - companyId
+        - name
+        - provider
+        - isActive
+        - syncStatus
+        - syncFrequencyMinutes
+        - totalEmailsProcessed
+        - createdAt
+        - updatedAt
+
+    # ==========================================
+    # REQUEST/RESPONSE SCHEMAS
+    # ==========================================
+
+    DashboardResponse:
+      type: object
+      properties:
+        metrics:
+          type: object
+          properties:
+            totalEmployees:
+              type: integer
+            activeEmployees:
+              type: integer
+            currentAbsenteeismRate:
+              type: number
+              format: decimal
+            monthlyTrend:
+              type: number
+              format: decimal
+            costImpact:
+              type: number
+              format: decimal
+            aiCallsThisMonth:
+              type: integer
+        charts:
+          type: object
+          properties:
+            thirtyDayTrend:
+              type: array
+              items:
+                $ref: '#/components/schemas/ChartDataPoint'
+            departmentBreakdown:
+              type: array
+              items:
+                $ref: '#/components/schemas/PieChartData'
+            absenceTypeDistribution:
+              type: array
+              items:
+                $ref: '#/components/schemas/BarChartData'
+        recentActivity:
+          type: array
+          items:
+            $ref: '#/components/schemas/ActivityLogEntry'
+      required:
+        - metrics
+        - charts
+        - recentActivity
+
+    ChartDataPoint:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        value:
+          type: number
+        label:
+          type: string
+      required:
+        - date
+        - value
+
+    PieChartData:
+      type: object
+      properties:
+        name:
+          type: string
+        value:
+          type: number
+        percentage:
+          type: number
+        color:
+          type: string
+      required:
+        - name
+        - value
+        - percentage
+
+    BarChartData:
+      type: object
+      properties:
+        category:
+          type: string
+        value:
+          type: number
+        color:
+          type: string
+      required:
+        - category
+        - value
+
+    ActivityLogEntry:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+        description:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        actor:
+          type: string
+        metadata:
+          type: object
+      required:
+        - id
+        - type
+        - description
+        - timestamp
+
+    # Additional schemas would continue here...
+    # This is a comprehensive but abbreviated version showing the structure
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+      required:
+        - success
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        statusCode:
+          type: integer
+        timestamp:
+          type: string
+          format: date-time
+        path:
+          type: string
+        requestId:
+          type: string
+      required:
+        - error
+        - message
+        - statusCode
+        - timestamp 
